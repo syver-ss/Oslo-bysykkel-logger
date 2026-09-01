@@ -1,0 +1,33 @@
+name: Log Oslo Bysykkel status
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"     # ca. hvert 15. minutt (GitHub kan forsinke/hoppe over ved last)
+  workflow_dispatch: {}         # lar deg kjøre den manuelt fra Actions-fanen
+
+concurrency:
+  group: log-status
+  cancel-in-progress: false     # ikke avbryt en pågående kjøring
+
+permissions:
+  contents: write               # trengs for at jobben kan committe data tilbake
+
+jobs:
+  log:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Poll station_status
+        env:
+          CLIENT_ID: syver-stave-dtu-bachelor    # <- bytt til din egen identifikator
+        run: python poll_status.py
+      - name: Commit data
+        run: |
+          git config user.name "status-logger"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/
+          git commit -m "status $(date -u +%FT%TZ)" || { echo "ingen endring"; exit 0; }
+          git push
