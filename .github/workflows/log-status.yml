@@ -1,33 +1,35 @@
-name: Log Oslo Bysykkel status
+name: log-status
 
+# GitHub struper cron, så vi kan IKKE stole på tett polling via schedule.
+# I stedet: start én kjøring hver 6. time, og la den polle selv hvert 15. min
+# internt (poll_loop.py) i ~5t40m. Da dekkes hele døgnet med 15-min-oppløsning.
 on:
   schedule:
-    - cron: "*/15 * * * *"     # ca. hvert 15. minutt (GitHub kan forsinke/hoppe over ved last)
-  workflow_dispatch: {}         # lar deg kjøre den manuelt fra Actions-fanen
+    - cron: "0 */6 * * *"      # kl 00,06,12,18 UTC (GitHub kan forsinke starten litt – ok)
+  workflow_dispatch: {}         # lar deg starte manuelt fra Actions-fanen
 
+# Ikke start en ny kjøring før den forrige er ferdig (unngår to som skriver samtidig)
 concurrency:
-  group: log-status
-  cancel-in-progress: false     # ikke avbryt en pågående kjøring
+  group: gbfs-logger
+  cancel-in-progress: false
 
 permissions:
-  contents: write               # trengs for at jobben kan committe data tilbake
+  contents: write               # nødvendig for at jobben skal kunne pushe data tilbake
 
 jobs:
-  log:
+  poll:
     runs-on: ubuntu-latest
+    timeout-minutes: 350        # like under GitHubs 6-timers-tak
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
-      - name: Poll station_status
+          python-version: "3.11"
+      - name: Poll GBFS in a self-loop
         env:
-          CLIENT_ID: syver-stave-dtu-bachelor    # <- bytt til din egen identifikator
-        run: python poll_status.py
-      - name: Commit data
-        run: |
-          git config user.name "status-logger"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/
-          git commit -m "status $(date -u +%FT%TZ)" || { echo "ingen endring"; exit 0; }
-          git push
+          CLIENT_ID: syver-stave-dtu-bachelor
+          OUT_DIR: "data"            # skriv til din eksisterende data-mappe (ikke en ny)
+          POLL_MINUTES: "15"
+          RUN_MINUTES: "340"
+          COMMIT_MINUTES: "60"
+        run: python poll_loop.py
