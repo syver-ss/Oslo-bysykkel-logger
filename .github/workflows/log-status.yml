@@ -5,7 +5,10 @@ name: log-status
 # internt (poll_loop.py) i ~5t40m. Da dekkes hele døgnet med 15-min-oppløsning.
 on:
   schedule:
-    - cron: "0 */6 * * *"      # kl 00,06,12,18 UTC (GitHub kan forsinke starten litt – ok)
+    # Start ofte (hver 2. time). Hver kjøring varer 5,7 t, og concurrency-køen under
+    # holder én kjøring klar, så en ny starter I DET SAMME den forrige slutter
+    # -> rygg-mot-rygg, sammenhengende dekning selv om GitHub hopper over noen cron-fyringer.
+    - cron: "0 */2 * * *"
   workflow_dispatch: {}         # lar deg starte manuelt fra Actions-fanen
 
 # Ikke start en ny kjøring før den forrige er ferdig (unngår to som skriver samtidig)
@@ -27,6 +30,7 @@ jobs:
           python-version: "3.11"
       - name: Poll GBFS in a self-loop
         env:
+          PYTHONUNBUFFERED: "1"      # vis print()-linjene live i Actions-loggen
           CLIENT_ID: syver-stave-dtu-bachelor
           OUT_DIR: "data"            # skriv til din eksisterende data-mappe (ikke en ny)
           POLL_MINUTES: "15"
